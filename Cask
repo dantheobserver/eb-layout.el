@@ -2,7 +2,6 @@
 (source melpa)
 
 (package-file "eb-layout.el")
-(depends-on)
 
 (depends-on "dash")
 (depends-on "hydra")

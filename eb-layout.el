@@ -40,20 +40,22 @@
 
 (defvar ebl-saved-layouts nil)
 
+(defvar ebl-autosave-on-update nil)
+
 ;; Flow 1: basic CRUD for eyebrowse layout
-(defun ebl--get-eb-layout () (eyebrowse--get 'window-configs))
+(defun ebl--get-current-layout () (eyebrowse--get 'window-configs))
 
 (defun ebl--set-eb-layout (cfg) (eyebrowse--set 'window-configs cfg))
 
-(defun ebl--update-eb-layout (update-fn)
-  (ebl--set-eb-layout (funcall update-fn (ebl--get-eb-layout))))
+;; (defun ebl--update-eb-layout (update-fn)
+;;   (ebl--set-eb-layout (funcall update-fn (ebl--get-current-layout))))
 
 (defun ebl--get-current-slot () (eyebrowse--get 'current-slot))
 
 (defun ebl--set-current-slot (slot) (eyebrowse--set 'current-slot slot))
 
-(defun ebl--update-current-slot (update-fn)
-  (ebl--set-current-slot (funcall update-fn (ebl--get-current-slot))))
+;; (defun ebl--update-current-slot (update-fn)
+;;   (ebl--set-current-slot (funcall update-fn (ebl--get-current-slot))))
 
 (defun ebl--list-saved-layout-names ()
   "List of saved layout by name."
@@ -79,7 +81,7 @@
 (defun ebl-save-current-layout (name)
   "Saves the current layout, adding entry having car `name'."
   (interactive)
-  (let ((layout (ebl--get-eb-layout)))
+  (let ((layout (ebl--get-current-layout)))
     (ebl--add-layout-to-list name layout)
     (ebl--save-layout-to-file layout)))
 
@@ -113,7 +115,7 @@
 	  (t (cons first (ebl--swap-layout-entry entry-a entry-b rest))))))
 
 (defun ebl--shift-position (should-shift? from-slot to-slot)
-  (let ((cur-layout (ebl--get-eb-layout)))
+  (let ((cur-layout (ebl--get-current-layout)))
     (if should-shift?
 	(let* ((entry-a (assoc from-slot cur-layout))
 	       (entry-b (assoc to-slot cur-layout))
@@ -121,20 +123,42 @@
 	  (ebl--set-eb-layout swapped-list)
 	  (ebl--set-current-slot to-slot)))))
 
-(defun ebl-move-left (&optional auto-save)
+(defun ebl-move-left ()
   (interactive)
   (let ((cur-slot (ebl--get-current-slot)))
     (ebl--shift-position (/= cur-slot 1) cur-slot (1- cur-slot))))
 
-(defun ebl-move-right (&optional auto-save)
+(defun ebl-move-right ()
   (interactive)
   (let ((cur-slot (ebl--get-current-slot)))
-    (ebl--shift-position (not ())
+    (ebl--shift-position (assoc (1+ cur-slot) (ebl--get-current-layout))
 			 cur-slot (1+ cur-slot))))
 
-;;TODO: Delete to right
-;;TODO: Delete to left
-;;TODO: Balance on deletion
+(defun ebl--balance-layouts (layout removed-slot)
+  (seq-map (lambda (elem)
+	     (seq-let [slot &rest layout] elem
+	       (if (< removed-slot slot)
+		   (cons (1- slot) layout)
+		 elem)))
+	   layout))
+
+;;TODO Not switching on balance
+(defun ebl-delete-current-layout ()
+  (interactive)
+  "Delete a layout and balance if necessary."
+  (let ((cur-slot (ebl--get-current-slot)))
+    (if (/= 0 cur-slot) ;; TODO: 0th layout is special and outside the balancing
+	(if (assoc (1+ cur-slot) (ebl--get-current-layout)) ;; balance if not the last
+	    ;; Balancing will not require changinging index
+	    (progn
+	      (eyebrowse--delete-window-config cur-slot)
+	      (ebl--set-eb-layout (ebl--balance-layouts (ebl--get-current-layout) cur-slot))
+	      (ebl--set-current-slot cur-slot))
+	  (progn
+	    (eyebrowse-prev-window-config 1)
+	    (eyebrowse--delete-window-config cur-slot))))))
+
+;;TODO: Insertion, not out of place (no 1 2 4 5) etc.  Keep balanced
 (comment 
  ;;updating in place alist value
  (let* ((test-list '((a . 1)
