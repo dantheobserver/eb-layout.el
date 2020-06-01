@@ -64,8 +64,10 @@
 (defun ebl--add-layout-to-list (name layout)
   "Add or update the current layout to the list of saved layouts with name `name'." 
   (if (assoc name ebl-saved-layouts)
-      (setf (alist-get name ebl-saved-layouts nil nil #'equal) current-config)
-    (add-to-list 'ebl-saved-layouts (cons name current-config))))
+      (setf (alist-get name ebl-saved-layouts nil nil #'equal) (ebl--get-current-layout))
+    (add-to-list 'ebl-saved-layouts (cons name (ebl--get-current-layout)))))
+
+;; (map 'list #'car ebl-saved-layouts)
 
 ;; Flow 2 : Serialize Configs
 (defun ebl--save-layout-to-file (layout &optional filename)
@@ -74,27 +76,37 @@
 
 (defun ebl--load-layout-from-file ()
   (with-temp-buffer
-    (insert-file-contents eb--layout-path)
+    (insert-file-contents ebl--layout-path)
     (goto-char (point-min))
     (read (current-buffer))))
 
+(defun ebl--layout-prompt ()
+  (-let [prompt (concatenate 'string
+			     "Choose layout ["
+			     (string-join  (ebl--list-saved-layout-names) ", ")
+			     "]: ")]
+    (read-from-minibuffer prompt)))
+
 (defun ebl-save-current-layout (name)
   "Saves the current layout, adding entry having car `name'."
-  (interactive)
-  (let ((layout (ebl--get-current-layout)))
+  (interactive (list (read-from-minibuffer "Enter layout name: ")))
+  (-let [layout (ebl--get-current-layout)]
     (ebl--add-layout-to-list name layout)
     (ebl--save-layout-to-file layout)))
 
 (defun ebl-load-layout (name)
   "Load layout from file"
-  (interactive)
-  (if (not (file-exists-p))
+  (interactive (list (ebl--layout-prompt)))
+  (if (not (file-exists-p ebl--layout-path))
       (message "There are no saved files!")
-    (let ((layouts (ebl--load-layout-from-file)))
+    (-let [layouts (ebl--load-layout-from-file)]
       ;; Set layout value
       (setq ebl-saved-layouts layouts)
       ;; Set layout file
-      (ebl--set-eb-layout (alist-get "name" layouts)))))
+      (ebl--set-eb-layout (alist-get name layouts nil nil #'equal)))))
+
+;; (-let [layouts (ebl--load-layout-from-file)]
+;;   (alist-get "main" layouts nil nil #'equal))
 
 ;; Flow 3 Minipulating 
 ;; * Move Left and write - maintaining order of alist and updating slot number
