@@ -87,16 +87,28 @@
 			     "]: ")]
     (read-from-minibuffer prompt)))
 
+(defun ebl--prompt-layout-name ()
+  (-let [layouts (cl-map 'list
+			 #'car
+			 (ebl--load-layout-from-file))]
+    (ivy-read "Enter Layout Name: " (ebl--get-layout-names))))
+
 (defun ebl-save-current-layout (name)
   "Saves the current layout, adding entry having car `name'."
-  (interactive (list (read-from-minibuffer "Enter layout name: ")))
+  (interactive (list (ebl--prompt-layout-name)))
   (-let [layout (ebl--get-current-layout)]
     (ebl--add-layout-to-list name layout)
     (ebl--save-layout-to-file layout)))
 
+(defun ebl--prompt-layout-name ()
+  (-let [layouts (cl-map 'list
+			 #'car
+			 (ebl--load-layout-from-file))]
+    (ivy-read "Enter Layout Name: " (ebl--get-layout-names))))
+
 (defun ebl-load-layout (name)
   "Load layout from file"
-  (interactive (list (ebl--layout-prompt)))
+  (interactive (list (ebl--prompt-layout-name)))
   (if (not (file-exists-p ebl--layout-path))
       (message "There are no saved files!")
     (-let [layouts (ebl--load-layout-from-file)]
