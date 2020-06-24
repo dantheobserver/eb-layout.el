@@ -38,9 +38,13 @@
 
 (defconst ebl--layout-path "~/.emacs.d/eb-layouts")
 
-(defvar ebl-saved-layouts nil)
+(defvar ebl-saved-layouts)
 
-(defvar ebl-autosave-on-update nil)
+;; TODO: auto-saving when user executes command
+;; (defvar ebl-autosave-on-update nil)
+
+(defvar ebl-layout-display-function)
+(defvar ebl-layout-name)
 
 ;; Flow 1: basic CRUD for eyebrowse layout
 (defun ebl--get-current-layout () (eyebrowse--get 'window-configs))
@@ -91,20 +95,15 @@
   (-let [layouts (cl-map 'list
 			 #'car
 			 (ebl--load-layout-from-file))]
-    (ivy-read "Enter Layout Name: " (ebl--get-layout-names))))
+    (ivy-read "Enter Layout Name: " layouts)))
 
 (defun ebl-save-current-layout (name)
   "Saves the current layout, adding entry having car `name'."
   (interactive (list (ebl--prompt-layout-name)))
   (-let [layout (ebl--get-current-layout)]
     (ebl--add-layout-to-list name layout)
-    (ebl--save-layout-to-file layout)))
-
-(defun ebl--prompt-layout-name ()
-  (-let [layouts (cl-map 'list
-			 #'car
-			 (ebl--load-layout-from-file))]
-    (ivy-read "Enter Layout Name: " (ebl--get-layout-names))))
+    (ebl--save-layout-to-file layout)
+    (setq ebl-layout-name name)))
 
 (defun ebl-load-layout (name)
   "Load layout from file"
@@ -114,6 +113,7 @@
     (-let [layouts (ebl--load-layout-from-file)]
       ;; Set layout value
       (setq ebl-saved-layouts layouts)
+      (setq ebl-layout-name name)
       ;; Set layout file
       (ebl--set-eb-layout (alist-get name layouts nil nil #'equal)))))
 
@@ -181,6 +181,66 @@
 	  (progn
 	    (eyebrowse-prev-window-config 1)
 	    (eyebrowse--delete-window-config cur-slot))))))
+
+;; Hydra
+(defun ebl-hydra//eyebrowse-list ()
+  (mapcar 
+   (lambda (cfg) 
+     (let* ((config-num (car cfg))
+	    (config-name (caddr cfg)))
+       (cons config-num config-name)))
+   (eyebrowse--get 'window-configs)))
+
+(defun ebl-hydra//sel-formatter (cfg-str)
+  (propertize (format "[ %s ]" cfg-str)
+	      'face '(bold 'warning)))
+
+(defun ebl-hydra//format-eyebrowse-config (sel-formatter-f)
+  (let ((cur-slot (eyebrowse--get 'current-slot)))
+    (mapcar
+     (lambda (config)
+       (let* ((config-idx (car config))
+	      (config-name (cdr config))
+	      (config-str (if (string-empty-p config-name)
+			      (number-to-string config-idx)
+			    (format "%s:%s" config-idx config-name))))
+	 (if (eq cur-slot config-idx)
+	     (concat (funcall sel-formatter-f config-str))
+	   config-str)))
+     (ebl-hydra//eyebrowse-list))))
+
+(defhydra ebl-hydra-nav (:hint nil)
+  "
+%s(string-join (ebl-hydra//format-eyebrowse-config #'ebl-hydra//sel-formatter) \" | \")
+^^^^ _n_: _n_ext           _0_: window config _0_  _5_: window config _5_
+^^^^ _p_: _p_rev           _1_: window config _1_  _6_: window config _6_
+^^^^ _c_: _c_reate config  _2_: window config _2_  _7_: window config _7_
+^^^^ _D_: _D_elete config  _3_: window config _3_  _8_: window config _8_
+^^^^ _r_: _r_ename config  _4_: window config _4_  _9_: window config _9_
+^^^^ _S_: _S_ave config    _L_: _L_oad config      _q_:_q_uit            " 
+  ("n" #'eyebrowse-next-window-config)
+  ("p" #'eyebrowse-prev-window-config)
+  ("TAB" #'eyebrowse-last-window-config)
+  ("c" #'eyebrowse-create-window-config)
+  ("D" #'eyebrowse-close-window-config)
+  ("r" #'eyebrowse-rename-window-config)
+  ("0" #'eyebrowse-switch-to-window-config-0)
+  ("1" #'eyebrowse-switch-to-window-config-1)
+  ("2" #'eyebrowse-switch-to-window-config-2)
+  ("3" #'eyebrowse-switch-to-window-config-3)
+  ("4" #'eyebrowse-switch-to-window-config-4)
+  ("5" #'eyebrowse-switch-to-window-config-5)
+  ("6" #'eyebrowse-switch-to-window-config-6)
+  ("7" #'eyebrowse-switch-to-window-config-7)
+  ("8" #'eyebrowse-switch-to-window-config-8)
+  ("9" #'eyebrowse-switch-to-window-config-9)
+  ("S" #'ebl-save-current-layout)
+  ("L" #'ebl-load-layout)
+  ("<" #'ebl-move-left)
+  (">" #'ebl-move-right)
+  ("q" nil :color blue))
+
+(hydra-set-property 'ebl-hydra-nav :verbosity 1)
 
 ;;TODO: Insertion, not out of place (no 1 2 4 5) etc.  Keep balanced
 (comment 
